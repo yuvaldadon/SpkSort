@@ -21,7 +21,7 @@ StimDir{7}='/media/sil2/Data/Locust/polariztaion_newData/24_05/rectPairs_2021_5_
 threshold = [25,25,13,37,37,25,10];
 %SpikeObj=cell(7);
 %% initialize
-for i=1:1
+for i=1:7
    %recording object
    [~, ~, fExt] = fileparts(RecordingFolder{i});
    if isempty(fExt)
