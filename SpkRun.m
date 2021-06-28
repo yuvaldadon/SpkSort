@@ -50,14 +50,3 @@ for i=1:1
    end
 end
 
-SpikeObj{7}.Print_pvalue('on');
-SpikeObj{7}.Print_pvalue('off');
-
-p=SpikeObj{7}.LTI_pvalue_Off;
-Y = cat(3,p{:});
-out = mean(Y,2);
-
-% avg cluster
-obj=AvgResponseCluster(obj);
-f=figure('name','PSTH Off');f=obj.PsthPlot(obj.Moff_clusters, 2, f);
-obj.SavePlot(f, 'clustersPSTHOff');
