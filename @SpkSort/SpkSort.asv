@@ -17,6 +17,10 @@ classdef SpkSort
         Events; % event trigger times (from Recording)
         onTimes; % On event times
         offTimes; % Off event times
+        avgOn;
+        avgOff;
+        avgOnInfo;
+        avgOffInfo;
         Mon; % On events spike matrix
         Moff; % Off events spike matrix
         doubleMon; % On events spike matrix (double stim)
@@ -36,8 +40,8 @@ classdef SpkSort
         window=500;
         clusters=2; % number of spike clusters to sort
         kernelPrint=1; % enable to print kernels on top of PSTH
-        kernelW = 10; % weight of kernel
-        kernel='boxcar'; % supported kernels: 'boxcar'/'Gauss'/'exp'
+        kernelW = 8; % weight of kernel
+        kernel='Gauss'; % supported kernels: 'boxcar'/'Gauss'/'exp'
         
         % Plot
         axis={'Spacing',0.002,'Padding',0.002,'Margin',0.05};
@@ -265,6 +269,101 @@ classdef SpkSort
 
         end
         
+        %% Average response across screen
+        function obj=AvgResponse(obj)
+            M=cat(1,obj.Mon{:});
+            Mon=sum(M);
+            M=cat(1,obj.Moff{:});
+            Moff=sum(M);
+            
+            [Mon ~] = msdf(transpose(Mon),obj.kernel,obj.kernelW);
+            [Moff ~] = msdf(transpose(Moff),obj.kernel,obj.kernelW);
+            obj.avgOn=Mon/obj.nPos;
+            obj.avgOff=Moff/obj.nPos;
+            
+            % On print
+            f=figure('name','Avg On');
+            plot(obj.x, obj.avgOn, 'b');
+            obj.avgOnInfo = stepinfo(obj.avgOn,obj.x);
+            hold on
+            peaktime=obj.avgOnInfo.PeakTime;
+            peak=obj.avgOnInfo.Peak;
+            settlingtime=obj.avgOnInfo.SettlingTime;
+            std1=std(obj.avgOn);
+            str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+            str=sprintf(str);
+            ylim=get(gca,'ylim');
+            xlim=get(gca,'xlim');
+            text(xlim(2)-200,ylim(2)-0.1,str)
+            obj.SavePlot(f, 'AvgResponseOn');
+            
+            % Off print
+            f=figure('name','Avg Off');
+            plot(obj.x, obj.avgOff, 'b');
+            
+            hold on
+            obj.avgOffInfo = stepinfo(obj.avgOff,obj.x);
+            peaktime=obj.avgOffInfo.PeakTime;
+            peak=obj.avgOffInfo.Peak;
+            settlingtime=obj.avgOffInfo.SettlingTime;
+            std1=std(obj.avgOff);
+            str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+            str=sprintf(str);
+            ylim=get(gca,'ylim');
+            xlim=get(gca,'xlim');
+            text(xlim(2)-200,ylim(2)-0.1,str)
+            obj.SavePlot(f, 'AvgResponseOff');
+        end
+        
+        %% Average response for clusters
+        function obj=AvgResponseCluster(obj)
+            for i=1:obj.clusters
+                Mon=obj.Mon_clusters{i};
+                Mon=cat(1,obj.Mon{:});
+                Mon=sum(Mon);
+                Moff=obj.Moff_clusters{i};
+                Moff=cat(1,obj.Moff{:});
+                Moff=sum(Moff);
+
+                [Mon ~] = msdf(transpose(Mon),obj.kernel,obj.kernelW);
+                [Moff ~] = msdf(transpose(Moff),obj.kernel,obj.kernelW);
+                obj.avgOn=Mon/obj.nPos;
+                obj.avgOff=Moff/obj.nPos;
+
+                % On print
+                f=figure('name','Avg On');
+                plot(obj.x, obj.avgOn, 'b');
+                obj.avgOnInfo = stepinfo(obj.avgOn,obj.x);
+                hold on
+                peaktime=obj.avgOnInfo.PeakTime;
+                peak=obj.avgOnInfo.Peak;
+                settlingtime=obj.avgOnInfo.SettlingTime;
+                std1=std(obj.avgOn);
+                str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+                str=sprintf(str);
+                ylim=get(gca,'ylim');
+                xlim=get(gca,'xlim');
+                text(xlim(2)-200,ylim(2)-0.1,str)
+                obj.SavePlot(f, ['AvgResponseOn_cluster' num2str(i)]);
+                
+                % On print
+                f=figure('name','Avg On');
+                plot(obj.x, obj.avgOn, 'b');
+                obj.avgOnInfo = stepinfo(obj.avgOn,obj.x);
+                hold on
+                peaktime=obj.avgOnInfo.PeakTime;
+                peak=obj.avgOnInfo.Peak;
+                settlingtime=obj.avgOnInfo.SettlingTime;
+                std1=std(obj.avgOn);
+                str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+                str=sprintf(str);
+                ylim=get(gca,'ylim');
+                xlim=get(gca,'xlim');
+                text(xlim(2)-200,ylim(2)-0.1,str)
+                obj.SavePlot(f, 'AvgResponseOn');
+            end
+        end
+        
         %% print compare for Double Square Stim        
         function obj=DoubleStimPrint(obj)
             for i=1:obj.nPos
@@ -277,16 +376,27 @@ classdef SpkSort
                         continue
                     else
                         % print raster + psth for double stim
-                        %obj.PrintDoublePlot(obj.doubleMon{i,i}, obj.doubleMon{j,j}, obj.doubleMon{i,j}, i, j, 'on');
-                        %obj.PrintDoublePlot(obj.doubleMoff{i,i}, obj.doubleMoff{j,j}, obj.doubleMoff{i,j}, i, j, 'off');
+                        obj.PrintDoublePlot(obj.doubleMon{i,i}, obj.doubleMon{j,j}, obj.doubleMon{i,j}, i, j, 'on');
+                        obj.PrintDoublePlot(obj.doubleMoff{i,i}, obj.doubleMoff{j,j}, obj.doubleMoff{i,j}, i, j, 'off');
                         
-                        % calc p values
+                        % LTI reduced matrixes
                         obj.LTI_doubleMon{i,j}=obj.ReduceBins(obj.doubleMon{i,j});
                         obj.LTI_doubleMoff{i,j}=obj.ReduceBins(obj.doubleMoff{i,j});
-                        %obj=obj.calc_pvalue(i, j);
                     end
                 end
             end
+            
+            % find p values
+            for i=1:obj.nPos
+                for j=1:obj.nPos
+                    if (i==j) || (isempty(obj.doubleMon{i,j}))
+                        continue
+                    else
+                        obj=obj.calc_pvalue(i, j);
+                    end
+                end
+            end
+            
             obj.Print_pvalue('on');
             obj.Print_pvalue('off');
         end
@@ -452,7 +562,7 @@ classdef SpkSort
                     
                 % print PSTH + kernel
                 elseif type==1
-                    bar(obj.x, psth, 'EdgeColor', [0.5 0.5 0.5], 'FaceColor', [0.5 0.5 0.5], 'BarWidth',1);
+                    bar(obj.x, psth, 'EdgeColor', [0.3 0.3 0.3], 'FaceColor', [0.3 0.3 0.3], 'BarWidth',1);
                     axis([min(obj.x) max(obj.x) 0 tilesMax*1.2]);
                     hold on
                     [sdf ~] = msdf(transpose(psth),obj.kernel,obj.kernelW);
@@ -556,7 +666,7 @@ classdef SpkSort
         end
         
         %% plot before applying Spike Sort
-        function PlotBeforeSort(obj)
+        function obj=PlotBeforeSort(obj)
             
             % Raster plots
             f=figure('name','Raster On');f=obj.RasterPlot(obj.Mon, f);
@@ -567,10 +677,17 @@ classdef SpkSort
 
             % PSTH plots
             f=figure('name','PSTH On');f=obj.PsthPlot(obj.Mon, obj.kernelPrint, f);
+            obj.SavePlot(f, 'GridKernelOn');
+            f=figure('name','PSTH On');f=obj.PsthPlot(obj.Mon, 0, f);
             obj.SavePlot(f, 'GridPSTHOn');
 
             f=figure('name','PSTH Off');f=obj.PsthPlot(obj.Moff, obj.kernelPrint, f);
+            obj.SavePlot(f, 'GridKernelOff');
+            f=figure('name','PSTH On');f=obj.PsthPlot(obj.Moff, 0, f);
             obj.SavePlot(f, 'GridPSTHOff');
+            
+            % average kernel
+            obj=obj.AvgResponse;
             
             % Pre-sort SpikeCheck
             f=figure('units','normalized','position',[0.02 .1 .6 .6]);

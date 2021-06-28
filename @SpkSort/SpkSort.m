@@ -17,6 +17,10 @@ classdef SpkSort
         Events; % event trigger times (from Recording)
         onTimes; % On event times
         offTimes; % Off event times
+        avgOn;
+        avgOff;
+        avgOnInfo;
+        avgOffInfo;
         Mon; % On events spike matrix
         Moff; % Off events spike matrix
         doubleMon; % On events spike matrix (double stim)
@@ -36,8 +40,8 @@ classdef SpkSort
         window=500;
         clusters=2; % number of spike clusters to sort
         kernelPrint=1; % enable to print kernels on top of PSTH
-        kernelW = 10; % weight of kernel
-        kernel='boxcar'; % supported kernels: 'boxcar'/'Gauss'/'exp'
+        kernelW = 8; % weight of kernel
+        kernel='Gauss'; % supported kernels: 'boxcar'/'Gauss'/'exp'
         
         % Plot
         axis={'Spacing',0.002,'Padding',0.002,'Margin',0.05};
@@ -54,8 +58,8 @@ classdef SpkSort
         
         %LTI plots
         LTI_bins=10; % num of bins after combining for LTI plot
-        LTI_cutoffBins=0.7; % percent of bins from start to allocate for LTI plot
-        pvalue_intensity=7;
+        LTI_cutoffBins=0.5; % percent of bins from start to allocate for LTI plot
+        pvalue_intensity=5;
         LTI_pvalue_On;
         LTI_pvalue_Off;
         LTI_doubleMon;
@@ -265,6 +269,102 @@ classdef SpkSort
 
         end
         
+        %% Average response across screen
+        function obj=AvgResponse(obj)
+            M=cat(1,obj.Mon{:});
+            Mon=sum(M);
+            M=cat(1,obj.Moff{:});
+            Moff=sum(M);
+            
+            [Mon ~] = msdf(transpose(Mon),obj.kernel,obj.kernelW);
+            [Moff ~] = msdf(transpose(Moff),obj.kernel,obj.kernelW);
+            obj.avgOn=Mon/obj.nPos;
+            obj.avgOff=Moff/obj.nPos;
+            
+            % On print
+            f=figure('name','Avg On');
+            plot(obj.x, obj.avgOn, 'b');
+            obj.avgOnInfo = stepinfo(obj.avgOn,obj.x);
+            hold on
+            peaktime=obj.avgOnInfo.PeakTime;
+            peak=obj.avgOnInfo.Peak;
+            settlingtime=obj.avgOnInfo.SettlingTime;
+            std1=std(obj.avgOn);
+            str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+            str=sprintf(str);
+            ylim=get(gca,'ylim');
+            xlim=get(gca,'xlim');
+            text(xlim(2)-200,ylim(2)-0.1,str)
+            obj.SavePlot(f, 'AvgResponseOn');
+            
+            % Off print
+            f=figure('name','Avg Off');
+            plot(obj.x, obj.avgOff, 'b');
+            
+            hold on
+            obj.avgOffInfo = stepinfo(obj.avgOff,obj.x);
+            peaktime=obj.avgOffInfo.PeakTime;
+            peak=obj.avgOffInfo.Peak;
+            settlingtime=obj.avgOffInfo.SettlingTime;
+            std1=std(obj.avgOff);
+            str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+            str=sprintf(str);
+            ylim=get(gca,'ylim');
+            xlim=get(gca,'xlim');
+            text(xlim(2)-200,ylim(2)-0.1,str)
+            obj.SavePlot(f, 'AvgResponseOff');
+        end
+        
+        %% Average response for clusters
+        function obj=AvgResponseCluster(obj)
+            for i=1:obj.clusters
+                Mon=obj.Mon_clusters(:,i);
+                Mon=cat(1,Mon{:});
+                Mon=sum(Mon);
+                
+                Moff=obj.Moff_clusters(:,i);
+                Moff=cat(1,Moff{:});
+                Moff=sum(Moff);
+
+                [Mon ~] = msdf(transpose(Mon),obj.kernel,obj.kernelW);
+                [Moff ~] = msdf(transpose(Moff),obj.kernel,obj.kernelW);
+                avgOn=Mon/obj.nPos;
+                avgOff=Moff/obj.nPos;
+
+                % On print
+                f=figure('name','Avg On');
+                plot(obj.x, avgOn, 'b');
+                avgOnInfo = stepinfo(avgOn,obj.x);
+                hold on
+                peaktime=avgOnInfo.PeakTime;
+                peak=avgOnInfo.Peak;
+                settlingtime=avgOnInfo.SettlingTime;
+                std1=std(avgOn);
+                str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+                str=sprintf(str);
+                ylim=get(gca,'ylim');
+                xlim=get(gca,'xlim');
+                text(xlim(2)-200,ylim(2)-0.1,str)
+                obj.SavePlot(f, ['AvgResponseOn_cluster' num2str(i)]);
+                
+                % On print
+                f=figure('name','Avg Off');
+                plot(obj.x, avgOff, 'b');
+                avgOffInfo = stepinfo(avgOff,obj.x);
+                hold on
+                peaktime=avgOffInfo.PeakTime;
+                peak=avgOffInfo.Peak;
+                settlingtime=avgOffInfo.SettlingTime;
+                std1=std(avgOff);
+                str=[' Peak: ' num2str(peak) '\n Peak Time: ' num2str(peaktime) '\n Settling Time: ' num2str(settlingtime) '\n Std: ' num2str(std1)];
+                str=sprintf(str);
+                ylim=get(gca,'ylim');
+                xlim=get(gca,'xlim');
+                text(xlim(2)-200,ylim(2)-0.1,str)
+                obj.SavePlot(f, ['AvgResponseOff_cluster' num2str(i)]);
+            end
+        end
+        
         %% print compare for Double Square Stim        
         function obj=DoubleStimPrint(obj)
             for i=1:obj.nPos
@@ -463,7 +563,7 @@ classdef SpkSort
                     
                 % print PSTH + kernel
                 elseif type==1
-                    bar(obj.x, psth, 'EdgeColor', [0.5 0.5 0.5], 'FaceColor', [0.5 0.5 0.5], 'BarWidth',1);
+                    bar(obj.x, psth, 'EdgeColor', [0.3 0.3 0.3], 'FaceColor', [0.3 0.3 0.3], 'BarWidth',1);
                     axis([min(obj.x) max(obj.x) 0 tilesMax*1.2]);
                     hold on
                     [sdf ~] = msdf(transpose(psth),obj.kernel,obj.kernelW);
@@ -472,7 +572,7 @@ classdef SpkSort
                     
                 % print kernels of clusters on top of eachother (only done after sort)
                 else
-                    axis([min(obj.x) max(obj.x) 0 tilesMax*0.6]);
+                    axis([min(obj.x) max(obj.x) 0 tilesMax*1]);
                     colormap=['r' 'b' 'g' 'm'];
                     hold on
                     for j=1:obj.clusters
@@ -567,7 +667,7 @@ classdef SpkSort
         end
         
         %% plot before applying Spike Sort
-        function PlotBeforeSort(obj)
+        function obj=PlotBeforeSort(obj)
             
             % Raster plots
             f=figure('name','Raster On');f=obj.RasterPlot(obj.Mon, f);
@@ -578,10 +678,17 @@ classdef SpkSort
 
             % PSTH plots
             f=figure('name','PSTH On');f=obj.PsthPlot(obj.Mon, obj.kernelPrint, f);
+            obj.SavePlot(f, 'GridKernelOn');
+            f=figure('name','PSTH On');f=obj.PsthPlot(obj.Mon, 0, f);
             obj.SavePlot(f, 'GridPSTHOn');
 
             f=figure('name','PSTH Off');f=obj.PsthPlot(obj.Moff, obj.kernelPrint, f);
+            obj.SavePlot(f, 'GridKernelOff');
+            f=figure('name','PSTH On');f=obj.PsthPlot(obj.Moff, 0, f);
             obj.SavePlot(f, 'GridPSTHOff');
+            
+            % average kernel
+            obj=obj.AvgResponse;
             
             % Pre-sort SpikeCheck
             f=figure('units','normalized','position',[0.02 .1 .6 .6]);
